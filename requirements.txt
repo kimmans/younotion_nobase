@@ -1,0 +1,8 @@
+youtube-transcript-api==0.6.1
+yt-dlp==2023.12.30
+openai==1.82.0
+python-dotenv==1.0.0
+notion-client==2.2.1
+pytube==15.0.0
+streamlit==1.32.0 
+langchain-teddynote>=0.0.1
