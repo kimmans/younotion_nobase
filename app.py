@@ -170,16 +170,12 @@ if st.session_state.video_url:
         used_language = None
 
         try:
-            # 자동 생성 자막 시도 (한국어 → 영어 순서)
+            # 자동 생성 자막만 시도 (한국어 → 영어 순서)
             transcript = None
             used_language = None
-            
-            # 한국어 자동 생성 자막 시도
             try:
                 st.info("🔍 한국어 자동 생성 자막을 찾는 중...")
                 transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-                st.write(f"사용 가능한 자막: {[t.language for t in transcript_list]}")
-                
                 auto_generated = transcript_list.find_generated_transcript(['ko'])
                 if auto_generated:
                     transcript = auto_generated.fetch()
@@ -189,12 +185,10 @@ if st.session_state.video_url:
                     st.warning("⚠️ 한국어 자동 생성 자막을 찾을 수 없습니다.")
             except Exception as e:
                 st.warning(f"⚠️ 한국어 자동 생성 자막 시도 실패: {str(e)}")
-                # 영어 자동 생성 자막 시도
+                # 영어 자동 생성 자막만 시도
                 try:
                     st.info("🔍 영어 자동 생성 자막을 찾는 중...")
                     transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-                    st.write(f"사용 가능한 자막: {[t.language for t in transcript_list]}")
-                    
                     auto_generated = transcript_list.find_generated_transcript(['en'])
                     if auto_generated:
                         transcript = auto_generated.fetch()
@@ -206,22 +200,16 @@ if st.session_state.video_url:
                     st.warning(f"⚠️ 영어 자동 생성 자막 시도 실패: {str(e)}")
                     transcript = None
                     used_language = None
-            
+
             if transcript:
                 # Get video info
                 title, channel = get_video_info(video_url)
-                
-                # Convert transcript to text
                 transcript_text = "\n".join([f"{item['text']}" for item in transcript])
-                
-                # Generate summary using GPT
                 api_keys = get_api_keys()
                 if api_keys['openai']:
                     with st.spinner('🤖 AI가 영상을 분석하고 있습니다...'):
                         analysis_text = analyze_with_gpt(transcript_text, title, channel, video_url, api_keys['openai'])
-                        
                         if analysis_text:
-                            # Save analysis to Notion if API key is provided
                             if api_keys['notion'] and api_keys['notion_db']:
                                 with st.spinner('📝 Notion에 저장 중...'):
                                     notion_url = save_to_notion(
@@ -238,8 +226,6 @@ if st.session_state.video_url:
                                         st.error("❌ Notion 저장에 실패했습니다.")
                         else:
                             st.error("❌ AI 분석에 실패했습니다.")
-                
-                # 결과를 세션 상태에 저장
                 st.session_state.results = {
                     'transcript': transcript,
                     'transcript_text': transcript_text,
@@ -249,12 +235,10 @@ if st.session_state.video_url:
                     'title': title,
                     'channel': channel
                 }
-                
         except Exception as e:
             st.error(f"❌ 오류가 발생했습니다: {str(e)}")
             transcript = None
             used_language = None
-        
     except Exception as e:
         st.error(f"❌ 오류가 발생했습니다: {str(e)}")
         if hasattr(e, 'response'):
