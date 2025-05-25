@@ -7,6 +7,14 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from langchain_teddynote import logging
 import requests
 
+# 프록시 설정 (스트림릿 클라우드 환경에서만 사용)
+if 'STREAMLIT_SERVER' in os.environ:
+    proxies = {
+        'http': os.getenv('HTTP_PROXY'),
+        'https': os.getenv('HTTPS_PROXY')
+    }
+    YouTubeTranscriptApi._proxies = proxies
+
 # User-Agent 설정
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -14,6 +22,9 @@ headers = {
 
 # YouTubeTranscriptApi에 headers 전달
 YouTubeTranscriptApi._headers = headers
+
+# 타임아웃 설정
+YouTubeTranscriptApi._timeout = 30  # 30초로 설정
 
 # 페이지 설정
 st.set_page_config(
@@ -81,111 +92,91 @@ if analyze_button:
             transcript = None
             used_language = None
 
-            # 자막 다운로드 시도 (언어 우선순위: 한국어 → 한국어 자동생성 → 영어)
             try:
-                # 자막 시도 순서: 한국어 수동 → 한국어 자동 → 영어 수동 → 영어 자동
-                languages_to_try = [
-                    ('ko', '한국어'),
-                    ('en', '영어')
-                ]
+                # 자동 생성 자막 시도 (한국어 → 영어 순서)
+                transcript = None
+                used_language = None
                 
-                for lang_code, lang_name in languages_to_try:
-                    if transcript:
-                        break
-                        
-                    try:
-                        # 수동 생성 자막 시도
-                        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang_code])
-                        used_language = lang_code
-                        st.success(f"✅ {lang_name} 수동 생성 스크립트 생성 성공")
-                    except:
-                        try:
-                            # 자동 생성 자막 시도
-                            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-                            # 자동 생성 자막 명시적으로 찾기
-                            auto_generated = transcript_list.find_generated_transcript([lang_code])
-                            if auto_generated:
-                                transcript = auto_generated.fetch()
-                                used_language = lang_code
-                                st.success(f"✅ {lang_name} 자동 생성 스크립트 생성 성공")
-                        except:
-                            continue
-                
-                if not transcript:
-                    st.warning("⚠️ 한국어 또는 영어 자막을 찾을 수 없습니다.")
-                    st.info("현재 지원 언어: 한국어, 영어")
-                    transcript = None
-                    used_language = None
-                    
-            except Exception as e:
-                # 자막 목록을 가져올 수 없는 경우, 바로 자동 생성 자막 시도
-                st.info("자동 생성 자막을 시도합니다...")
+                # 한국어 자동 생성 자막 시도
                 try:
-                    # 한국어 자동 생성 자막 시도
+                    st.info("🔍 한국어 자동 생성 자막을 찾는 중...")
                     transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                    st.write(f"사용 가능한 자막: {[t.language for t in transcript_list]}")
+                    
                     auto_generated = transcript_list.find_generated_transcript(['ko'])
                     if auto_generated:
                         transcript = auto_generated.fetch()
                         used_language = 'ko'
                         st.success("✅ 한국어 자동 생성 스크립트 생성 성공")
                     else:
-                        # 영어 자동 생성 자막 시도
+                        st.warning("⚠️ 한국어 자동 생성 자막을 찾을 수 없습니다.")
+                except Exception as e:
+                    st.warning(f"⚠️ 한국어 자동 생성 자막 시도 실패: {str(e)}")
+                    # 영어 자동 생성 자막 시도
+                    try:
+                        st.info("🔍 영어 자동 생성 자막을 찾는 중...")
+                        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                        st.write(f"사용 가능한 자막: {[t.language for t in transcript_list]}")
+                        
                         auto_generated = transcript_list.find_generated_transcript(['en'])
                         if auto_generated:
                             transcript = auto_generated.fetch()
                             used_language = 'en'
                             st.success("✅ 영어 자동 생성 스크립트 생성 성공")
                         else:
-                            st.warning("⚠️ 자동 생성 자막을 찾을 수 없습니다.")
-                            transcript = None
-                            used_language = None
-                except Exception as e:
-                    st.warning("⚠️ 자동 생성 자막을 가져올 수 없습니다.")
-                    transcript = None
-                    used_language = None
-            
-            if transcript:
-                # Get video info
-                title, channel = get_video_info(video_url)
+                            st.warning("⚠️ 영어 자동 생성 자막을 찾을 수 없습니다.")
+                    except Exception as e:
+                        st.warning(f"⚠️ 영어 자동 생성 자막 시도 실패: {str(e)}")
+                        transcript = None
+                        used_language = None
                 
-                # Convert transcript to text
-                transcript_text = "\n".join([f"{item['text']}" for item in transcript])
-                
-                # Generate summary using GPT
-                api_keys = get_api_keys()
-                if api_keys['openai']:
-                    with st.spinner('🤖 AI가 영상을 분석하고 있습니다...'):
-                        analysis_text = analyze_with_gpt(transcript_text, title, channel, video_url, api_keys['openai'])
-                        
-                        if analysis_text:
-                            # Save analysis to Notion if API key is provided
-                            if api_keys['notion'] and api_keys['notion_db']:
-                                with st.spinner('📝 Notion에 저장 중...'):
-                                    notion_url = save_to_notion(
-                                        analysis_text, 
-                                        title, 
-                                        channel, 
-                                        video_url, 
-                                        api_keys['notion_db'], 
-                                        api_keys['notion']
-                                    )
-                                    if notion_url:
-                                        st.success("✅ Notion에 저장되었습니다. 결과에서 링크를 확인하세요.")
-                                    else:
-                                        st.error("❌ Notion 저장에 실패했습니다.")
-                        else:
-                            st.error("❌ AI 분석에 실패했습니다.")
-                
-                # 결과를 세션 상태에 저장
-                st.session_state.results = {
-                    'transcript': transcript,
-                    'transcript_text': transcript_text,
-                    'analysis_text': analysis_text if 'analysis_text' in locals() else None,
-                    'notion_url': notion_url if 'notion_url' in locals() else None,
-                    'language': used_language,
-                    'title': title,
-                    'channel': channel
-                }
+                if transcript:
+                    # Get video info
+                    title, channel = get_video_info(video_url)
+                    
+                    # Convert transcript to text
+                    transcript_text = "\n".join([f"{item['text']}" for item in transcript])
+                    
+                    # Generate summary using GPT
+                    api_keys = get_api_keys()
+                    if api_keys['openai']:
+                        with st.spinner('🤖 AI가 영상을 분석하고 있습니다...'):
+                            analysis_text = analyze_with_gpt(transcript_text, title, channel, video_url, api_keys['openai'])
+                            
+                            if analysis_text:
+                                # Save analysis to Notion if API key is provided
+                                if api_keys['notion'] and api_keys['notion_db']:
+                                    with st.spinner('📝 Notion에 저장 중...'):
+                                        notion_url = save_to_notion(
+                                            analysis_text, 
+                                            title, 
+                                            channel, 
+                                            video_url, 
+                                            api_keys['notion_db'], 
+                                            api_keys['notion']
+                                        )
+                                        if notion_url:
+                                            st.success("✅ Notion에 저장되었습니다. 결과에서 링크를 확인하세요.")
+                                        else:
+                                            st.error("❌ Notion 저장에 실패했습니다.")
+                            else:
+                                st.error("❌ AI 분석에 실패했습니다.")
+                    
+                    # 결과를 세션 상태에 저장
+                    st.session_state.results = {
+                        'transcript': transcript,
+                        'transcript_text': transcript_text,
+                        'analysis_text': analysis_text if 'analysis_text' in locals() else None,
+                        'notion_url': notion_url if 'notion_url' in locals() else None,
+                        'language': used_language,
+                        'title': title,
+                        'channel': channel
+                    }
+                    
+            except Exception as e:
+                st.error(f"❌ 오류가 발생했습니다: {str(e)}")
+                transcript = None
+                used_language = None
             
         except Exception as e:
             st.error(f"❌ 오류가 발생했습니다: {str(e)}")
