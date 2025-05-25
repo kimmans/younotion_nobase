@@ -6,3 +6,4 @@ notion-client==2.2.1
 pytube==15.0.0
 streamlit==1.32.0 
 langchain-teddynote>=0.0.1
+google-api-python-client==2.118.0
