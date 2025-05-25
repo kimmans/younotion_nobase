@@ -111,7 +111,6 @@ with st.sidebar:
         if url_input.strip():
             st.session_state.video_url = url_input.strip()
             st.session_state.results = None
-            st.rerun()
         else:
             st.warning("유튜브 URL을 입력해주세요.")
 
