@@ -77,38 +77,46 @@ if analyze_button:
                 # 먼저 사용 가능한 자막 목록 확인
                 available_transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
                 st.info("📋 사용 가능한 자막 언어:")
-                for transcript in available_transcripts:
-                    st.write(f"  - {transcript.language}: {transcript.language_code}")
+                for transcript_item in available_transcripts:
+                    st.write(f"  - {transcript_item.language}: {transcript_item.language_code}")
                 
-                # 한국어 자막 시도 (수동 생성)
-                try:
-                    transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'])
-                    used_language = 'ko'
-                    st.success("✅ 한국어 스크립트 생성 성공")
-                except:
-                    # 한국어 자동 생성 자막 시도
+                # 자막 시도 순서: 한국어 수동 → 한국어 자동 → 영어 수동 → 영어 자동
+                languages_to_try = [
+                    ('ko', '한국어'),
+                    ('en', '영어')
+                ]
+                
+                for lang_code, lang_name in languages_to_try:
+                    if transcript:
+                        break
+                        
                     try:
-                        # 자동 생성된 한국어 자막 찾기
-                        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-                        auto_generated = transcript_list.find_transcript(['ko'])
-                        if auto_generated:
-                            transcript = auto_generated.fetch()
-                            used_language = 'ko'
-                            st.success("✅ 한국어 자동 생성 스크립트 생성 성공")
-                        else:
-                            raise Exception("자동 생성된 한국어 자막을 찾을 수 없습니다.")
+                        # 수동 생성 자막 시도
+                        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang_code])
+                        used_language = lang_code
+                        st.success(f"✅ {lang_name} 수동 생성 스크립트 생성 성공")
                     except:
-                        # 영어 자막 시도
                         try:
-                            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
-                            used_language = 'en'
-                            st.success("✅ 영어 스크립트 생성 성공")
-                        except Exception as e:
-                            st.error(f"❌ 자막 다운로드 실패: {str(e)}")
-                            transcript = None
-                            used_language = None
+                            # 자동 생성 자막 시도
+                            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                            # 자동 생성 자막 명시적으로 찾기
+                            auto_generated = transcript_list.find_generated_transcript([lang_code])
+                            if auto_generated:
+                                transcript = auto_generated.fetch()
+                                used_language = lang_code
+                                st.success(f"✅ {lang_name} 자동 생성 스크립트 생성 성공")
+                        except:
+                            continue
+                
+                if not transcript:
+                    st.warning("⚠️ 한국어 또는 영어 자막을 찾을 수 없습니다.")
+                    st.info("현재 지원 언어: 한국어, 영어")
+                    transcript = None
+                    used_language = None
+                    
             except Exception as e:
-                st.error(f"❌ 자막 목록 조회 실패: {str(e)}")
+                st.warning("⚠️ 자막 목록을 가져올 수 없습니다.")
+                st.info("동영상이 비공개이거나 자막이 비활성화되어 있을 수 있습니다.")
                 transcript = None
                 used_language = None
             
