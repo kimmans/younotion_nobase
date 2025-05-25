@@ -295,20 +295,40 @@ def download_youtube_transcript(video_url, output_dir="subtitles", language='ko'
         used_language = language
         
         try:
+            # 먼저 일반 자막 시도
             transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
             print(f"✅ {language} 자막 다운로드 성공")
         except:
             try:
-                transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'])
-                used_language = 'ko'
-                print("✅ 한국어 자막 다운로드 성공")
+                # 자동 생성 자막 시도
+                transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[language], preserve_formatting=True)
+                print(f"✅ {language} 자동 생성 자막 다운로드 성공")
             except:
                 try:
-                    transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
-                    used_language = 'en'
-                    print("✅ 영어 자막 다운로드 성공")
-                except Exception as e:
-                    raise Exception(f"사용 가능한 자막을 찾을 수 없습니다: {e}")
+                    # 한국어 자막 시도
+                    transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'])
+                    used_language = 'ko'
+                    print("✅ 한국어 자막 다운로드 성공")
+                except:
+                    try:
+                        # 한국어 자동 생성 자막 시도
+                        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko'], preserve_formatting=True)
+                        used_language = 'ko'
+                        print("✅ 한국어 자동 생성 자막 다운로드 성공")
+                    except:
+                        try:
+                            # 영어 자막 시도
+                            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+                            used_language = 'en'
+                            print("✅ 영어 자막 다운로드 성공")
+                        except:
+                            try:
+                                # 영어 자동 생성 자막 시도
+                                transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'], preserve_formatting=True)
+                                used_language = 'en'
+                                print("✅ 영어 자동 생성 자막 다운로드 성공")
+                            except Exception as e:
+                                raise Exception(f"사용 가능한 자막을 찾을 수 없습니다: {e}")
         
         if not transcript:
             raise Exception("자막 데이터를 가져올 수 없습니다.")
