@@ -5,6 +5,15 @@ from main import download_youtube_transcript, get_video_info, analyze_with_gpt, 
 from pytube import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi
 from langchain_teddynote import logging
+import requests
+
+# User-Agent 설정
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+}
+
+# YouTubeTranscriptApi에 headers 전달
+YouTubeTranscriptApi._headers = headers
 
 # 페이지 설정
 st.set_page_config(
@@ -95,7 +104,8 @@ if analyze_button:
                         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang_code])
                         used_language = lang_code
                         st.success(f"✅ {lang_name} 수동 생성 스크립트 생성 성공")
-                    except:
+                    except Exception as e:
+                        st.warning(f"⚠️ {lang_name} 수동 생성 자막 시도 실패: {str(e)}")
                         try:
                             # 자동 생성 자막 시도
                             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
@@ -105,7 +115,8 @@ if analyze_button:
                                 transcript = auto_generated.fetch()
                                 used_language = lang_code
                                 st.success(f"✅ {lang_name} 자동 생성 스크립트 생성 성공")
-                        except:
+                        except Exception as e:
+                            st.warning(f"⚠️ {lang_name} 자동 생성 자막 시도 실패: {str(e)}")
                             continue
                 
                 if not transcript:
@@ -115,7 +126,7 @@ if analyze_button:
                     used_language = None
                     
             except Exception as e:
-                st.warning("⚠️ 자막 목록을 가져올 수 없습니다.")
+                st.warning(f"⚠️ 자막 목록을 가져올 수 없습니다: {str(e)}")
                 st.info("동영상이 비공개이거나 자막이 비활성화되어 있을 수 있습니다.")
                 transcript = None
                 used_language = None
