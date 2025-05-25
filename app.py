@@ -6,6 +6,7 @@ from pytube import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi
 from langchain_teddynote import logging
 import re
+import time
 
 # 프록시 설정 (스트림릿 클라우드 환경에서만 사용)
 if 'STREAMLIT_SERVER' in os.environ:
@@ -282,3 +283,27 @@ if st.session_state.results:
 # 푸터
 st.markdown("---")
 st.markdown("Made by jmhanmu@gmail.com❤️ ")
+
+def get_transcript_with_retry(video_id, languages, max_retries=3, delay=2):
+    for attempt in range(max_retries):
+        try:
+            return YouTubeTranscriptApi.get_transcript(video_id, languages=languages)
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+                continue
+            raise e
+
+def check_transcript_availability(video_id):
+    try:
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        return {
+            'available': True,
+            'languages': [t.language_code for t in transcript_list],
+            'generated': [t.language_code for t in transcript_list if t.is_generated]
+        }
+    except Exception as e:
+        return {
+            'available': False,
+            'error': str(e)
+        }
