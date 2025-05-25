@@ -105,18 +105,24 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("#### 또는 직접 유튜브 URL 입력")
-    url_input = st.text_input(
-        "유튜브 URL을 입력하세요",
-        placeholder="https://www.youtube.com/watch?v=...",
-        key="direct_url_input"
-    )
-    if st.button("이 URL 분석", key="analyze_direct_url"):
+
+    def analyze_direct_url():
+        url_input = st.session_state.get("direct_url_input", "")
         if url_input.strip():
             st.session_state.video_url = url_input.strip()
             st.session_state.results = None
             st.rerun()
         else:
             st.warning("유튜브 URL을 입력해주세요.")
+
+    st.text_input(
+        "유튜브 URL을 입력하세요",
+        placeholder="https://www.youtube.com/watch?v=...",
+        key="direct_url_input",
+        on_change=analyze_direct_url
+    )
+    if st.button("이 URL 분석", key="analyze_direct_url"):
+        analyze_direct_url()
 
 # 항상 세션 상태의 검색 결과를 보여줌
 if st.session_state.search_results:
