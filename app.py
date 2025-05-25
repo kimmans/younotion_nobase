@@ -73,6 +73,8 @@ def run_search():
 
 # --- 초기화 함수 정의 ---
 def reset_search():
+    if "search_input" in st.session_state:
+        del st.session_state["search_input"]
     st.session_state.search_results = []
     st.session_state.search_query = ""
     st.session_state.video_url = ""
@@ -87,12 +89,10 @@ st.markdown("관심 있는 유튜브 영상을 검색하고, 알아서 요약하
 # --- 사이드바에 검색 입력 및 버튼 ---
 with st.sidebar:
     st.markdown("### 🔍 YouTube 검색")
-    search_value = st.session_state.get("search_input", "")
     st.text_input(
         "검색어를 입력하세요",
         placeholder="검색어를 입력하세요...",
         key="search_input",
-        value=search_value,
         on_change=run_search
     )
     btn_col1, btn_col2 = st.columns(2)
@@ -140,8 +140,8 @@ if st.session_state.search_results:
                 unsafe_allow_html=True
             )
             if st.button("이 영상 분석하기", key=f"select_{video['video_id']}"):
+                st.session_state.results = None  # 항상 결과 초기화
                 st.session_state.video_url = video['url']
-                st.session_state.results = None
                 st.rerun()
     # 페이지네이션 버튼 (이전/다음)
     st.markdown("<div style='height: 24px;'></div>", unsafe_allow_html=True)  # 카드와 버튼 사이 여백
