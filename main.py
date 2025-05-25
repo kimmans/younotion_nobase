@@ -8,6 +8,10 @@ from openai import OpenAI
 from datetime import datetime
 from dotenv import load_dotenv
 from notion_client import Client
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+import streamlit as st
+from zoneinfo import ZoneInfo
 
 def analyze_with_gpt(transcript_text, title, channel, video_url, api_key):
     """
@@ -162,8 +166,9 @@ def save_to_notion(analysis_text, title, channel, video_url, database_id, notion
             
         notion = Client(auth=notion_api_key)
         
-        # 현재 날짜와 시간
-        current_time = datetime.now().isoformat()
+        # 현재 날짜와 시간 (한국시간)
+        korea_now = datetime.now(ZoneInfo("Asia/Seoul"))
+        current_time = korea_now.isoformat()
         
         # 주요 인사이트 추출 (### 🔍 주요 인사이트 다음 부분)
         insights = ""
@@ -433,6 +438,50 @@ def check_dependencies():
         print("pip install youtube-transcript-api yt-dlp openai python-dotenv notion-client")
         print(f"누락된 모듈: {e}")
         return False
+
+def search_youtube_videos(query, max_results=3, offset=0):
+    """
+    YouTube Data API를 사용하여 비디오 검색 (페이지네이션 지원)
+    offset: 0, 10, 20 ...
+    """
+    try:
+        youtube = build('youtube', 'v3', developerKey=os.getenv('YOUTUBE_API_KEY'))
+        page_token = None
+        results_to_skip = offset
+        videos = []
+        while results_to_skip >= 0:
+            search_response = youtube.search().list(
+                q=query,
+                part='snippet',
+                maxResults=max_results,
+                type='video',
+                pageToken=page_token
+            ).execute()
+            items = search_response.get('items', [])
+            if results_to_skip < max_results:
+                items = items[results_to_skip:]
+                for item in items:
+                    video_data = {
+                        'title': item['snippet']['title'],
+                        'channel': item['snippet']['channelTitle'],
+                        'thumbnail': item['snippet']['thumbnails']['high']['url'],
+                        'video_id': item['id']['videoId'],
+                        'url': f"https://www.youtube.com/watch?v={item['id']['videoId']}"
+                    }
+                    videos.append(video_data)
+                break
+            else:
+                results_to_skip -= max_results
+                page_token = search_response.get('nextPageToken')
+                if not page_token:
+                    break
+        return videos[:max_results]
+    except HttpError as e:
+        print(f"❌ YouTube API 오류: {str(e)}")
+        return []
+    except Exception as e:
+        print(f"❌ 검색 중 오류 발생: {str(e)}")
+        return []
 
 if __name__ == "__main__":
     if check_dependencies():
